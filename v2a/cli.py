@@ -16,16 +16,88 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
+from pathlib import Path
 
 from .config import Config
 from .styles import list_styles
 from .utils import LOG, setup_logging
 
 
+def _env_status() -> dict:
+    """Lightweight environment probe: which pieces are missing."""
+    import importlib.util
+
+    status = {"python": True, "pip": True, "ffmpeg": True, "qwen_asr": False, "model": False}
+    try:
+        import v2a.utils as U
+        status["ffmpeg"] = bool(U.find_ffmpeg(""))
+    except Exception:  # noqa: BLE001
+        status["ffmpeg"] = False
+
+    if importlib.util.find_spec("qwen_asr"):
+        status["qwen_asr"] = True
+
+    try:
+        from .utils import detect_model
+        status["model"] = detect_model() is not None
+    except Exception:  # noqa: BLE001
+        status["model"] = False
+    return status
+
+
+def maybe_auto_install(no_install: bool) -> None:
+    """If the environment is incomplete and auto-install is allowed, run
+    install.py --yes (non-interactive) to install dependencies and ffmpeg."""
+    missing = []
+    try:
+        st = _env_status()
+        if not st["qwen_asr"]:
+            missing.append("R2T2 backend (qwen-asr)")
+        if not st["ffmpeg"]:
+            missing.append("ffmpeg")
+        if not st["model"]:
+            missing.append("R2T2 model (3.8GB)")
+    except Exception as e:  # noqa: BLE001
+        LOG.warning("environment probe failed: %s", e)
+        return
+
+    if not missing:
+        return
+    LOG.warning("missing: %s", ", ".join(missing))
+    if no_install:
+        LOG.warning("auto-install disabled (--no-install); run `python install.py --yes` to set up")
+        return
+    if not sys.stdin.isatty():
+        LOG.info("auto-installing dependencies (python install.py --yes)...")
+    else:
+        LOG.info("auto-installing dependencies (python install.py --yes)...")
+    installer = Path(__file__).resolve().parent.parent / "install.py"
+    if not installer.is_file():
+        LOG.warning("install.py not found next to the package; skip auto-install")
+        return
+    try:
+        r = subprocess.run([sys.executable, str(installer), "--yes"], cwd=str(installer.parent))
+        if r.returncode != 0:
+            LOG.error("auto-install exited with code %d — see messages above", r.returncode)
+        else:
+            LOG.info("auto-install finished. Re-checking...")
+            st2 = _env_status()
+            if not (st2["qwen_asr"] and st2["ffmpeg"]):
+                LOG.warning("still missing: %s",
+                            ", ".join(k for k, v in st2.items() if v is False and k in ("qwen_asr", "ffmpeg")))
+            if not st2["model"]:
+                LOG.warning("model still missing — follow the download commands printed above")
+    except Exception as e:  # noqa: BLE001
+        LOG.error("auto-install failed: %s", e)
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="v2a", description=__doc__)
     p.add_argument("--config", default="", help="path to config yaml")
+    p.add_argument("--no-install", action="store_true",
+                   help="disable automatic dependency installation on startup")
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -48,6 +120,10 @@ def main(argv=None) -> int:
 
     args = p.parse_args(argv)
     setup_logging(args.verbose)
+
+    # auto-deploy: install missing dependencies/ffmpeg on first run (unless disabled)
+    if args.cmd not in ("styles", "env"):
+        maybe_auto_install(no_install=args.no_install)
 
     try:
         cfg = Config.load(args.config)

@@ -48,3 +48,46 @@ def fmt_ts(seconds: float) -> str:
 def ensure_dir(path: str) -> str:
     os.makedirs(path, exist_ok=True)
     return path
+
+
+# ---------------------------------------------------------------- model discovery
+
+def candidate_model_dirs() -> list:
+    """Candidate R2T2 checkpoint locations (ComfyUI models dir / project models)."""
+    repo = os.path.join("r2t2", "netease-youdao", "Confucius4-R2T2")
+    cands = []
+    env = os.environ.get("COMFYUI_MODELS_DIR", "")
+    if env:
+        cands.append(os.path.join(env, repo))
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cands.append(os.path.join(root, "ComfyUI", "models", repo))
+    cands.append(os.path.join(root, "models", repo))
+    cands.append(os.path.join(os.path.expanduser("~"), "ComfyUI", "models", repo))
+    if os.name == "nt":
+        for drive in ("C", "D", "E"):
+            for base in (r"ComfyUI", r"Comfyui", r"ComfyUI-Windows_portable"):
+                cands.append(os.path.join(f"{drive}:\\", base, "models", repo))
+            # scan drive root for custom-named ComfyUI install dirs (e.g. Comfyui-dashengAI)
+            droot = f"{drive}:\\"
+            if os.path.isdir(droot):
+                try:
+                    for name in os.listdir(droot):
+                        cands.append(os.path.join(droot, name, "ComfyUI", "models", repo))
+                except OSError:
+                    pass
+    out, seen = [], set()
+    for p in cands:
+        s = os.path.normpath(p).lower()
+        if s not in seen:
+            seen.add(s)
+            out.append(p)
+    return out
+
+
+def detect_model() -> str | None:
+    """Return the first existing R2T2 checkpoint dir (needs config.json + model.safetensors)."""
+    for p in candidate_model_dirs():
+        if os.path.isfile(os.path.join(p, "config.json")) and \
+           os.path.isfile(os.path.join(p, "model.safetensors")):
+            return p
+    return None

@@ -11,6 +11,15 @@ description: 视频转公众号文章工具（v2a）。把本地教学/分享视
 2. **转写**：R2T2（默认）或 Whisper 本地 ASR，VAD 静音分段后逐段转写 → 带时间戳 Markdown 字幕（本地）
 3. **成文**：仅此步调用 LLM（DeepSeek/豆包等 OpenAI 兼容 API，或本地 Ollama）→ 公众号文章
 
+## 安装（自动）
+
+```bash
+python install.py --yes        # 全自动：依赖 + ffmpeg + config.yaml
+python -m v2a transcribe <视频或目录>   # 首次运行若缺依赖会自动补齐
+```
+
+或双击 `setup.bat`（Windows）/ `./setup.sh`（Linux/macOS）。
+
 ## 使用
 
 ```bash

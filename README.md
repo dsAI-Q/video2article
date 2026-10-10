@@ -18,20 +18,38 @@
 
 ## 快速开始
 
+### 方式一：一键部署（推荐，自动装依赖 + ffmpeg + 生成配置）
+
+**Windows**：双击 `setup.bat`（或命令行 `setup.bat`）
+**Linux / macOS**：`./setup.sh`
+
+脚本会：检测 Python ≥ 3.10 → 自动 `pip install` 依赖（librosa/qwen-asr 等）→ 找不到 ffmpeg 时自动下载便携版到项目内（无需管理员权限）→ 自动检测 R2T2 模型（ComfyUI models 或项目 models 目录）→ 无 GPU 自动切 CPU → 自动生成 `config.yaml`。
+
+### 方式二：命令行手动安装
+
 ```bash
 git clone https://github.com/dsAI-Q/video2article.git
 cd video2article
-pip install -r requirements.txt
-pip install qwen-asr==0.0.6        # R2T2 后端
-# 可选: pip install faster-whisper
+python install.py --yes        # 全自动；--check-only 只看不装；--dry-run 演练
+```
 
-# 配置 LLM（在线 API）
+### 方式三：零安装（CLI 首次运行自动部署）
+
+```bash
+python -m v2a video 视频.mp4
+```
+
+首次运行 `transcribe` / `video` / `article` 时，若发现缺少 qwen-asr、ffmpeg 或模型，会自动启动 `install.py --yes` 补齐后继续执行；用 `--no-install` 可关闭自动安装。
+
+配置 LLM（在线 API）后即可使用：
+
+```bash
 set LLM_BASE_URL=https://api.deepseek.com/v1
 set LLM_API_KEY=sk-xxxx
 set LLM_MODEL=deepseek-chat
 # 或本地 Ollama: set LLM_BASE_URL=http://localhost:11434/v1
 
-# ① 一键成文
+# ① 一键成文（缺依赖会自动安装）
 python -m v2a video 视频.mp4 --style tutorial
 
 # ② 只转写（不调 LLM，零成本）

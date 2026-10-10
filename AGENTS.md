@@ -12,13 +12,23 @@
 
 ## 安装
 
+一键部署（自动装依赖 + ffmpeg + 生成 config.yaml）：
+
 ```bash
 git clone https://github.com/dsAI-Q/video2article.git
 cd video2article
+python install.py --yes      # 全自动；--check-only 只检测；--dry-run 演练
+```
+
+或手动：
+
+```bash
 pip install -r requirements.txt        # 核心依赖（librosa/soundfile/pyyaml/numpy）
 pip install qwen-asr==0.0.6            # R2T2 后端（会固定 transformers==4.57.6）
 # 可选：pip install faster-whisper      # Whisper 后端
 ```
+
+> 提示：`python -m v2a` 首次运行会自动检测环境，缺少 qwen-asr / ffmpeg / 模型时自动执行 install.py 补齐（`--no-install` 关闭）。
 
 R2T2 模型（约 3.8GB）：
 - 自动检测：若机器装有 ComfyUI 且模型在 `ComfyUI/models/r2t2/netease-youdao/Confucius4-R2T2`，无需配置；
