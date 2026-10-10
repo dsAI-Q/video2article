@@ -1,0 +1,17 @@
+display-name-zh: 视频转公众号文章（v2a）
+version: 1.0.0
+tag-en: Writing
+tag-cn: 写作
+complete-tags-en:
+- Content / Transcription
+- Content / Article Writing
+complete-tags-cn:
+- 内容 / 语音转写
+- 内容 / 公众号成文
+summary-en: Transcribe a local teaching video with local ASR (R2T2) and turn timestamped subtitles into a WeChat (公众号) article. Only the article step calls an LLM; extraction and transcription run fully local and free.
+summary-cn: 用本地 ASR（R2T2）把教学/分享视频转成带时间戳字幕，再由大模型写成公众号文章。只有成文一步调 LLM，提取与转写全程本地免费。
+desc-en: When the user asks to convert a local video into text/subtitles/a WeChat article (视频转文字/转公众号文章/提取字幕/批量出文章), do NOT write a new tool — call the v2a CLI that ships with this repository. Pipeline: ffmpeg extracts 16k mono audio -> R2T2 local ASR with VAD silence segmentation -> timestamped Markdown subtitles -> (optional) LLM writes a styled 公众号 article. Transcription needs no API key; article generation needs an OpenAI-compatible LLM endpoint (DeepSeek / local Ollama).
+desc-cn: 当用户要求把本地视频转成文字/字幕/公众号文章（视频转文字、转公众号文章、批量出文章、提取字幕）时，不要重写工具，直接调用本仓库自带的 v2a CLI。流程：ffmpeg 提取 16k 单声道音轨 → R2T2 本地 ASR（VAD 静音分段）→ 带时间戳 Markdown 字幕 →（可选）LLM 按公众号风格成文。转写不需要任何 API key；成文需要 OpenAI 兼容端点（DeepSeek / 本地 Ollama）。
+author-en: dashengAi
+author-cn: 大圣AI
+source: community

@@ -109,8 +109,34 @@ HF_ENDPOINT=https://hf-mirror.com huggingface-cli download netease-youdao/Confuc
 
 ## 在各 Agent 中使用
 
-- **codex / dsh / trea**：仓库根目录的 `AGENTS.md` 已声明工具用法，把仓库加入项目即可让 Agent 直接调用
-- **豆包**：仓库根目录 `SKILL.md` 是豆包 Skill 入口；也可在豆包内配合 `doubao-newmedia-writing` 做公众号成文的风格/格式精修
+### 方式 A：零配置（推荐，任何 agent 通用）
+
+把仓库 clone 到本地后，**在仓库根目录启动你的 agent**（dsh / codex / trae / 豆包 CLI），agent 会自动读取根目录的 `AGENTS.md`，然后你直接用自然语言下指令即可：
+
+> 把 `D:\视频\教程1.mp4` 转成公众号文章，教程风格
+> 只提取这个目录下所有视频的字幕，不要调大模型
+
+agent 会自己执行 `python -m v2a ...` 并把结果返回给你。
+
+### 方式 B：注册成 dsh 全局 Skill（任何目录都能用）
+
+仓库内 `dsh-skill/` 是 dsh 专用 skill 包（含 `meta.yaml` + `SKILL.md`），一行软链注册：
+
+```powershell
+# Windows（在 dsh 已安装的机器上）
+mklink /J "%USERPROFILE%\.dsh\skills\video2article" "<仓库路径>\dsh-skill"
+```
+
+```bash
+# Linux / macOS
+ln -s "$(pwd)/dsh-skill" ~/.dsh/skills/video2article
+```
+
+之后在任何目录启动 dsh，都能直接说"用 v2a 把这个视频转成文章"，无需先 cd 进仓库。
+
+### 豆包
+
+仓库根目录 `SKILL.md` 是豆包 Skill 入口；也可在豆包内配合 `doubao-newmedia-writing` 做公众号成文的风格/格式精修。
 
 ## 排障
 
