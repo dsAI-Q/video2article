@@ -69,8 +69,12 @@ def run_transcribe(
     for f in files:
         name = _safe_name(f)
         wav_path = os.path.join(out_dir, f"{name}_16k.wav")
-        extract_audio(f, wav_path, ffmpeg) if f.lower().endswith((".mp4", ".mkv", ".avi", ".mov", ".flv")) \
-            else (_copy_audio(f, wav_path))
+        # Only a real wav can be copied as-is; every other format (mp4/mkv/m4a/mp3/flac/webm...)
+        # must go through ffmpeg to become 16k mono pcm wav.
+        if f.lower().endswith(".wav"):
+            _copy_audio(f, wav_path)
+        else:
+            extract_audio(f, wav_path, ffmpeg)
         wav, sr = _load_wav(wav_path)
         total_sec = wav.shape[0] / float(sr)
 
