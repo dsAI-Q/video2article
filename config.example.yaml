@@ -1,0 +1,30 @@
+# v2a configuration example.
+# Copy to config.yaml and edit, or override via environment variables:
+#   LLM_BASE_URL / LLM_API_KEY / LLM_MODEL / V2A_STYLE
+
+llm:
+  provider: openai_compatible   # openai_compatible | ollama
+  base_url: https://api.deepseek.com/v1
+  api_key: ""                   # or set env LLM_API_KEY (recommended)
+  model: deepseek-chat
+  temperature: 0.7
+  max_tokens: 4096
+  timeout: 120
+
+asr:
+  backend: auto                 # auto | r2t2 | whisper
+  # r2t2: model path. Leave empty to auto-detect a downloaded checkpoint under
+  #       ComfyUI/models/r2t2/netease-youdao/Confucius4-R2T2, or set a HF repo
+  #       id (needs network) / local directory.
+  model_path: ""
+  whisper_model: small          # whisper model size (if backend=whisper)
+  device: cuda:0                # cuda:0 or cpu
+  max_segment_seconds: 30       # hard cap per ASR segment
+  vad_threshold_db: -40         # silence threshold (dB RMS)
+  min_segment_seconds: 1
+
+# ffmpeg: leave empty to use PATH ffmpeg, or point to a full path.
+ffmpeg: ""
+
+style: tutorial                 # article style (tutorial | insight | story | custom)
+output_dir: output
