@@ -32,6 +32,12 @@ python -m v2a video <视频> --style tutorial
 # 字幕 → 文章
 python -m v2a article <字幕.md> -o 文章.md
 
+# 从网页视频抓字幕/音频（B 站/YouTube/抖音等）
+# 默认只抓字幕或音频（转文章最低需求），不下载完整视频
+python -m v2a web <网页URL> --no-article
+# 仅当用户明确说"下载/保存视频文件"时，才加 --keep-video 下载完整 mp4
+python -m v2a web <网页URL> --keep-video
+
 python -m v2a styles   # 列出风格
 ```
 

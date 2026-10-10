@@ -59,9 +59,12 @@ python -m v2a transcribe ./视频目录 -o 字幕.md
 python -m v2a article 字幕.md -o 文章.md --style insight
 
 # ④ 从网页视频直接抓（B 站/YouTube/抖音/小红书等 1000+ 站点）
-#    有 CC 字幕直接抓字幕（零成本零误差）；没字幕自动下音频走本地 ASR
+#    默认只抓字幕/音频（转文章最低需求，不下载完整视频）
+#    有 CC 字幕直接抓字幕；没字幕自动下音频走本地 ASR
 python -m v2a web "https://www.bilibili.com/video/BVxxxx" --no-article
 python -m v2a web "https://www.youtube.com/watch?v=xxxx" --style tutorial
+#    仅当用户明确要求"下载/保存视频"时，才加 --keep-video 下载完整 mp4：
+python -m v2a web "https://www.bilibili.com/video/BVxxxx" --keep-video
 ```
 
 ## 模型（不在仓库内）

@@ -61,6 +61,11 @@ python -m v2a article 字幕.md -o 文章.md --style insight
 
 # ④ 查看可用风格
 python -m v2a styles
+
+# ⑤ 从网页视频抓（B 站/YouTube/抖音等 1000+ 站点）
+#    默认只抓字幕或音频（转文章最低需求），不要主动加 --keep-video
+#    仅当用户明确说"下载/保存视频文件"时，才加 --keep-video 下完整 mp4
+python -m v2a web "https://www.bilibili.com/video/BVxxxx" --no-article
 ```
 
 ## 在豆包等平台内使用

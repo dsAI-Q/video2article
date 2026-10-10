@@ -42,7 +42,12 @@ python -m v2a video <视频.mp4> --style tutorial
 # ③ 已有字幕 → 文章
 python -m v2a article output/字幕.md -o output/文章.md --style insight
 
-# ④ 列出内置风格
+# ④ 从网页视频抓（B 站/YouTube/抖音等 1000+ 站点）
+#    默认只抓字幕或音频（转文章最低需求），不要加 --keep-video
+#    仅当用户明确说"下载/保存视频文件"时，才加 --keep-video 下完整 mp4
+python -m v2a web "https://www.bilibili.com/video/BVxxxx" --no-article
+
+# ⑤ 列出内置风格
 python -m v2a styles
 ```
 
