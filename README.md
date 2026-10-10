@@ -57,6 +57,11 @@ python -m v2a transcribe ./视频目录 -o 字幕.md
 
 # ③ 已有字幕 → 文章
 python -m v2a article 字幕.md -o 文章.md --style insight
+
+# ④ 从网页视频直接抓（B 站/YouTube/抖音/小红书等 1000+ 站点）
+#    有 CC 字幕直接抓字幕（零成本零误差）；没字幕自动下音频走本地 ASR
+python -m v2a web "https://www.bilibili.com/video/BVxxxx" --no-article
+python -m v2a web "https://www.youtube.com/watch?v=xxxx" --style tutorial
 ```
 
 ## 模型（不在仓库内）

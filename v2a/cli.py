@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -116,6 +117,13 @@ def main(argv=None) -> int:
     sp.add_argument("-o", "--output", default="")
     sp.add_argument("--style", default="", help="article style")
 
+    sp = sub.add_parser("web", help="fetch subtitles/audio from a web page URL (Bilibili/YouTube/...) and transcribe")
+    sp.add_argument("url", help="video page URL")
+    sp.add_argument("-o", "--output", default="", help="output markdown path")
+    sp.add_argument("--style", default="", help="article style (default: subtitles only, no article)")
+    sp.add_argument("--context", default="", help="extra context for article")
+    sp.add_argument("--no-article", action="store_true", help="only produce subtitles, do not call LLM")
+
     sub.add_parser("styles", help="list available article styles")
 
     args = p.parse_args(argv)
@@ -160,6 +168,47 @@ def main(argv=None) -> int:
             cfg.raw["style"] = style_override
             out = run_video(args.input, cfg, extra_context=args.context)
             print(out)
+            return 0
+        if args.cmd == "web":
+            from v2a.web import fetch_from_url, parse_subtitle_file, subtitle_markdown_from_web
+            from v2a.pipeline import run_transcribe
+            out_dir = os.path.abspath(cfg.raw.get("output_dir", "output"))
+            os.makedirs(out_dir, exist_ok=True)
+            LOG.info("fetching from: %s", args.url)
+            info = fetch_from_url(args.url, out_dir)
+            safe_title = re.sub(r"[^\w\-_.\u4e00-\u9fff]+", "_", info["title"]).strip("_") or "web"
+
+            if info["subtitle_path"]:
+                # webpage already has CC subtitles -> parse directly
+                segs = parse_subtitle_file(info["subtitle_path"])
+                LOG.info("parsed %d subtitle segments from webpage", len(segs))
+                md = subtitle_markdown_from_web(info["title"], args.url, segs)
+                md_path = args.output or os.path.join(out_dir, f"{safe_title}_字幕.md")
+                with open(md_path, "w", encoding="utf-8") as f:
+                    f.write(md)
+                LOG.info("subtitles saved -> %s", md_path)
+            else:
+                # no subtitles -> local ASR on downloaded audio
+                md_path = run_transcribe(info["audio_path"], cfg, args.output)
+
+            if not args.no_article:
+                from v2a.article import generate_article
+                with open(md_path, encoding="utf-8") as f:
+                    subtitle_text = f.read()
+                style = args.style or cfg.raw.get("style", "tutorial")
+                article = generate_article(
+                    subtitle_text,
+                    style=style,
+                    cfg_llm=cfg.raw.get("llm", {}),
+                    extra_context=args.context,
+                )
+                art_path = os.path.join(out_dir, f"{safe_title}_文章.md")
+                with open(art_path, "w", encoding="utf-8") as f:
+                    f.write(article)
+                LOG.info("article saved -> %s", art_path)
+                print(art_path)
+                return 0
+            print(md_path)
             return 0
     except KeyboardInterrupt:
         LOG.info("interrupted")
