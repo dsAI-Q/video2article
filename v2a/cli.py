@@ -171,7 +171,10 @@ def main(argv=None) -> int:
             print(out)
             return 0
         if args.cmd == "web":
-            from v2a.web import fetch_from_url, parse_subtitle_file, subtitle_markdown_from_web
+            from v2a.web import (
+                fetch_from_url, parse_subtitle_file, subtitle_markdown_from_web,
+                fetch_metadata, format_resources_section,
+            )
             from v2a.pipeline import run_transcribe
             out_dir = os.path.abspath(cfg.raw.get("output_dir", "output"))
             os.makedirs(out_dir, exist_ok=True)
@@ -194,6 +197,16 @@ def main(argv=None) -> int:
                 # no subtitles -> local ASR on downloaded audio
                 md_path = run_transcribe(info["audio_path"], cfg, args.output)
 
+            # Fetch description + comments, extract resource links (net disk, docs, platform)
+            resources_block = ""
+            try:
+                meta = fetch_metadata(args.url)
+                resources_block = format_resources_section(meta["links"])
+                if meta["links"]:
+                    LOG.info("extracted %d resource links from description/comments", len(meta["links"]))
+            except Exception as e:  # noqa: BLE001
+                LOG.warning("metadata/resource-link fetch failed: %s", e)
+
             if not args.no_article:
                 from v2a.article import generate_article
                 with open(md_path, encoding="utf-8") as f:
@@ -205,12 +218,22 @@ def main(argv=None) -> int:
                     cfg_llm=cfg.raw.get("llm", {}),
                     extra_context=args.context,
                 )
+                # Append resource links block verbatim (do not let LLM rewrite URLs)
+                if resources_block:
+                    article = article.rstrip() + "\n" + resources_block
                 art_path = os.path.join(out_dir, f"{safe_title}_文章.md")
                 with open(art_path, "w", encoding="utf-8") as f:
                     f.write(article)
                 LOG.info("article saved -> %s", art_path)
                 print(art_path)
                 return 0
+
+            # --no-article: also save extracted links alongside subtitles
+            if resources_block:
+                links_path = os.path.join(out_dir, f"{safe_title}_资源链接.md")
+                with open(links_path, "w", encoding="utf-8") as f:
+                    f.write(resources_block)
+                LOG.info("resource links saved -> %s", links_path)
             print(md_path)
             return 0
     except KeyboardInterrupt:

@@ -202,3 +202,115 @@ def subtitle_markdown_from_web(title: str, source_url: str, segments: list) -> s
         lines.append(txt)
         lines.append("")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# 3. fetch video description + comments, extract resource links
+# ---------------------------------------------------------------------------
+
+_URL_RE = re.compile(r"https?://[^\s<>\"'\)]+", re.IGNORECASE)
+
+
+def extract_links(text: str) -> list:
+    """Extract all http(s) URLs from text, preserving order, de-duplicated."""
+    if not text:
+        return []
+    seen = set()
+    out = []
+    for m in _URL_RE.finditer(text):
+        u = m.group(0).rstrip(".,;，。；")
+        if u not in seen:
+            seen.add(u)
+            out.append(u)
+    return out
+
+
+def _classify_link(url: str) -> str:
+    """Roughly classify a link for grouping in the resources section."""
+    u = url.lower()
+    if any(k in u for k in ("pan.quark.cn", "pan.baidu.com", "aliyundrive", "alipan",
+                            "lanzou", "lanzoui", "123pan", "xunlei", "uc.cn")):
+        return "网盘下载"
+    if "feishu" in u or "larksuite" in u or "docs.qq" in u:
+        return "文档/教程"
+    if "runninghub" in u or "runhub" in u:
+        return "在线体验平台"
+    if "bilibili" in u or "b23.tv" in u:
+        return "B站"
+    return "其他链接"
+
+
+def fetch_metadata(url: str, max_comments: int = 50) -> dict:
+    """Fetch video title, description and the AUTHOR'S pinned/resource comment.
+
+    Returns dict(title, description, pinned_comment, links).
+    Links are extracted from description + the author's own comment only
+    (the UP主's resource-aggregating comment is usually the pinned one).
+    """
+    try:
+        import yt_dlp  # noqa: PLC0415
+    except ImportError as e:
+        raise RuntimeError("yt-dlp is required for `v2a web`. pip install yt-dlp") from e
+
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "getdescription": True,
+        "getcomments": True,
+    }
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    title = info.get("title", url) or url
+    description = info.get("description", "") or ""
+    uploader = (info.get("uploader") or info.get("channel") or "").strip()
+
+    # --- Find the author's own comment(s) (usually the pinned resource comment) ---
+    pinned = ""
+    comments = info.get("comments") or []
+    author_comments = []
+    for c in comments[:max_comments]:
+        author = (c.get("author") or "").strip()
+        text = (c.get("text") or "").strip()
+        if not text:
+            continue
+        # Match uploader's own comment (UP主评论 = pinned resource comment)
+        if uploader and author == uploader:
+            author_comments.append(text)
+        # Also catch comments explicitly marked as top/pinned
+        elif c.get("is_top") or c.get("is_up_top") or c.get("top_level"):
+            author_comments.append(text)
+
+    if author_comments:
+        # Pick the author's comment with the most URLs (the resource summary)
+        pinned = max(author_comments, key=lambda t: len(_URL_RE.findall(t)))
+        LOG.info("author/pinned comment found (%.0f chars, %d urls)",
+                  len(pinned), len(_URL_RE.findall(pinned)))
+    else:
+        LOG.info("no author/pinned comment found in first %d comments", min(len(comments), max_comments))
+
+    # --- Extract links from description + author/pinned comment only ---
+    blob = "\n".join(p for p in (description, pinned) if p)
+    links = extract_links(blob)
+    LOG.info("metadata: %d links extracted (from description + pinned comment)", len(links))
+    return {"title": title, "description": description, "pinned_comment": pinned, "links": links}
+
+
+def format_resources_section(links: list) -> str:
+    """Format extracted links into a markdown '本期分享资料' block, grouped by type."""
+    if not links:
+        return ""
+    groups = {}
+    for u in links:
+        cat = _classify_link(u)
+        groups.setdefault(cat, []).append(u)
+    lines = ["", "---", "", "## 本期分享资料", ""]
+    order = ["网盘下载", "文档/教程", "在线体验平台", "B站", "其他链接"]
+    for cat in order:
+        if cat not in groups:
+            continue
+        lines.append(f"**{cat}**")
+        for u in groups[cat]:
+            lines.append(f"- {u}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
