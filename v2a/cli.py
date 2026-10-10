@@ -127,6 +127,10 @@ def main(argv=None) -> int:
 
     sub.add_parser("styles", help="list available article styles")
 
+    sp = sub.add_parser("check", help="run post-generation self-review on an article markdown")
+    sp.add_argument("input", help="article markdown file to review")
+    sp.add_argument("--web-mode", action="store_true", help="also check for resource-links section")
+
     args = p.parse_args(argv)
     setup_logging(args.verbose)
 
@@ -145,6 +149,15 @@ def main(argv=None) -> int:
             print(s)
         return 0
 
+    if args.cmd == "check":
+        from v2a.check import check_article, format_report
+        with open(args.input, encoding="utf-8") as f:
+            text = f.read()
+        issues = check_article(text, web_mode=args.web_mode)
+        print(format_report(issues))
+        # non-zero exit if any error-level issue
+        return 1 if any(sev == "error" for sev, _ in issues) else 0
+
     try:
         if args.cmd == "transcribe":
             from v2a.pipeline import run_transcribe
@@ -161,6 +174,10 @@ def main(argv=None) -> int:
             os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
             with open(out, "w", encoding="utf-8") as f:
                 f.write(article)
+            # post-generation self-review
+            from v2a.check import check_article, format_report
+            issues = check_article(article, web_mode=False)
+            print(format_report(issues))
             print(out)
             return 0
         if args.cmd == "video":
@@ -224,6 +241,10 @@ def main(argv=None) -> int:
                 art_path = os.path.join(out_dir, f"{safe_title}_文章.md")
                 with open(art_path, "w", encoding="utf-8") as f:
                     f.write(article)
+                # post-generation self-review (web mode: expect resource links block)
+                from v2a.check import check_article, format_report
+                issues = check_article(article, web_mode=True)
+                print(format_report(issues))
                 LOG.info("article saved -> %s", art_path)
                 print(art_path)
                 return 0
