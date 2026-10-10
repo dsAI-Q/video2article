@@ -123,6 +123,7 @@ def main(argv=None) -> int:
     sp.add_argument("--style", default="", help="article style (default: subtitles only, no article)")
     sp.add_argument("--context", default="", help="extra context for article")
     sp.add_argument("--no-article", action="store_true", help="only produce subtitles, do not call LLM")
+    sp.add_argument("--keep-video", action="store_true", help="also download the full mp4 video to output/")
 
     sub.add_parser("styles", help="list available article styles")
 
@@ -175,7 +176,9 @@ def main(argv=None) -> int:
             out_dir = os.path.abspath(cfg.raw.get("output_dir", "output"))
             os.makedirs(out_dir, exist_ok=True)
             LOG.info("fetching from: %s", args.url)
-            info = fetch_from_url(args.url, out_dir)
+            info = fetch_from_url(args.url, out_dir, keep_video=args.keep_video)
+            if info.get("video_path"):
+                LOG.info("full video saved: %s", info["video_path"])
             safe_title = re.sub(r"[^\w\-_.\u4e00-\u9fff]+", "_", info["title"]).strip("_") or "web"
 
             if info["subtitle_path"]:

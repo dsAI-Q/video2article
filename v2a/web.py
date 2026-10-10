@@ -26,11 +26,12 @@ from .utils import LOG, fmt_ts
 # 1. fetch subtitles or audio from URL
 # ---------------------------------------------------------------------------
 
-def fetch_from_url(url: str, out_dir: str) -> dict:
-    """Return dict(title, subtitle_path, audio_path, source_url).
+def fetch_from_url(url: str, out_dir: str, keep_video: bool = False) -> dict:
+    """Return dict(title, subtitle_path, audio_path, video_path, source_url).
 
     Exactly one of subtitle_path / audio_path is set (subtitle wins when both
-    exist).
+    exist). When keep_video=True, the full video (bestvideo+bestaudio merged
+    to mp4) is also downloaded and returned in video_path.
     """
     try:
         import yt_dlp  # noqa: PLC0415
@@ -80,41 +81,62 @@ def fetch_from_url(url: str, out_dir: str) -> dict:
             "title": title,
             "subtitle_path": subtitle_path,
             "audio_path": "",
+            "video_path": "",
             "source_url": url,
         }
 
-    # --- Pass 2: no subtitles -> download best audio ---
-    LOG.info("no CC subtitles on page; downloading audio stream...")
-    audio_opts = {
-        "format": "bestaudio/best",
-        "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-    }
+    # --- Pass 2: no subtitles -> download best audio (+ optional full video) ---
+    LOG.info("no CC subtitles on page; downloading audio stream%s...",
+              " (and full video)" if keep_video else "")
+    if keep_video:
+        # best video + best audio, merge to mp4 (needs ffmpeg, already required by v2a)
+        audio_opts = {
+            "format": "bestvideo*+bestaudio/best",
+            "merge_output_format": "mp4",
+            "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+        }
+    else:
+        audio_opts = {
+            "format": "bestaudio/best",
+            "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+        }
     audio_path = ""
+    video_path = ""
     with yt_dlp.YoutubeDL(audio_opts) as ydl:
         info = ydl.extract_info(url, download=True)
         title = info.get("title", title)
-        # yt-dlp returns the actual downloaded filename under requested_downloads
-        # or we reconstruct from id + expected ext
         vid = info["id"]
+        if keep_video:
+            # merged mp4
+            for ext in ("mp4", "mkv", "webm"):
+                cand = os.path.join(out_dir, f"{vid}.{ext}")
+                if os.path.isfile(cand):
+                    video_path = cand
+                    break
+        # audio file (m4a/webm/opus etc.) — used for ASR
         for ext in ("m4a", "webm", "mp3", "opus", "wav"):
             cand = os.path.join(out_dir, f"{vid}.{ext}")
             if os.path.isfile(cand):
                 audio_path = cand
                 break
-    if not audio_path:
+    if not audio_path and not video_path:
         # fallback: search newest file in out_dir
         cands = sorted(Path(out_dir).iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
         if cands:
             audio_path = str(cands[0])
 
-    LOG.info("audio downloaded: %s", audio_path)
+    LOG.info("downloaded: video=%s audio=%s", video_path or "-", audio_path or "-")
     return {
         "title": title,
         "subtitle_path": "",
         "audio_path": audio_path,
+        "video_path": video_path,
         "source_url": url,
     }
 
