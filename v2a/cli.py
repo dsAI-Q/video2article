@@ -139,7 +139,11 @@ def main(argv=None) -> int:
         maybe_auto_install(no_install=args.no_install)
 
     try:
-        cfg = Config.load(args.config)
+        # Auto-load ./config.yaml when --config is not explicitly given.
+        cfg_path = args.config or (os.path.join(os.getcwd(), "config.yaml"))
+        if not os.path.isfile(cfg_path):
+            cfg_path = ""
+        cfg = Config.load(cfg_path)
     except Exception as e:  # noqa: BLE001
         LOG.error("config load failed: %s", e)
         return 1
