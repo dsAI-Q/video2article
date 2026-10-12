@@ -101,6 +101,12 @@ def run_transcribe(
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.write(combined)
     LOG.info("subtitles saved -> %s", out_path)
+    # Free R2T2 VRAM after transcription — LLM step doesn't need it.
+    try:
+        from .asr import unload_r2t2
+        unload_r2t2()
+    except Exception:
+        pass
     return out_path
 
 

@@ -22,8 +22,8 @@ DEFAULTS = {
         "api_key": "",
         "model": "deepseek-chat",
         "temperature": 0.7,
-        "max_tokens": 4096,
-        "timeout": 120,
+        "max_tokens": 8192,
+        "timeout": 300,
     },
     "asr": {
         "backend": "auto",  # auto | r2t2 | whisper

@@ -59,12 +59,37 @@ def _load_r2t2(model_path: str, device: str = "cuda:0") -> object:
     return asr
 
 
+def unload_r2t2() -> None:
+    """Drop the cached R2T2 model and free VRAM/RAM. Call after transcription finishes."""
+    obj = _R2T2_MODEL.get("obj")
+    if obj is None:
+        return
+    try:
+        del obj
+    except Exception:
+        pass
+    _R2T2_MODEL.update(key=None, obj=None)
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            LOG.info("R2T2 unloaded, VRAM freed.")
+    except Exception:
+        pass
+
+
 class R2T2Engine:
     name = "r2t2"
 
-    def __init__(self, model_path: str = "", device: str = "cuda:0"):
+    def __init__(self, model_path: str = "", device: str = "auto"):
         import torch  # noqa: PLC0415
-        self.device = device if torch.cuda.is_available() else "cpu"
+        if device in ("auto", "", "cuda"):
+            self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
         path = model_path.strip() or _detect_comfyui_r2t2_path()
         if not path:
             raise RuntimeError(
@@ -111,14 +136,28 @@ class WhisperEngine:
 
 
 def get_engine(asr_cfg: dict) -> object:
-    """Pick an engine: auto -> r2t2 if importable else whisper."""
+    """Pick an engine: auto -> r2t2 if importable else whisper.
+
+    If device is 'auto' or empty, auto-detect GPU and pick device + segment length.
+    """
+    from .gpu import detect_gpu, recommend_settings
+
+    gpu = detect_gpu()
+    rec = recommend_settings(gpu)
+    device = (asr_cfg.get("device") or "auto").strip()
+    if device in ("auto", "", "cuda" if gpu["available"] else "cpu"):
+        device = rec["device"]
+        LOG.info("GPU detect: %s", rec["note"])
+        # auto-adjust segment length if user didn't override
+        asr_cfg.setdefault("max_segment_seconds", rec["max_segment_seconds"])
+
     backend = (asr_cfg.get("backend") or "auto").strip().lower()
     if backend == "r2t2" or backend == "auto":
         try:
             import qwen_asr  # noqa: F401
             return R2T2Engine(
                 model_path=asr_cfg.get("model_path", ""),
-                device=asr_cfg.get("device", "cuda:0"),
+                device=device,
             )
         except (ModuleNotFoundError, RuntimeError) as e:
             if backend == "r2t2":
@@ -126,5 +165,5 @@ def get_engine(asr_cfg: dict) -> object:
             LOG.info("R2T2 unavailable (%s), falling back to whisper.", str(e)[:80])
     return WhisperEngine(
         model_size=asr_cfg.get("whisper_model", "small"),
-        device=asr_cfg.get("device", "cuda:0"),
+        device=device,
     )

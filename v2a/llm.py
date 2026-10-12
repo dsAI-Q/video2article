@@ -24,10 +24,13 @@ class LLMError(RuntimeError):
 
 
 class LLMClient:
-    def __init__(self, cfg: dict, api_key: str = "", timeout: int = 120):
+    def __init__(self, cfg: dict, api_key: str = "", timeout: int | None = None):
         self.cfg = cfg
         self.api_key = (api_key or cfg.get("api_key", "") or "").strip()
-        self.timeout = timeout
+        base = (cfg.get("base_url") or "").lower()
+        is_local = "localhost" in base or "127.0.0.1" in base
+        # local models need much longer (prefill + slow generation)
+        self.timeout = timeout or int(cfg.get("timeout", 300 if is_local else 120))
 
     def _endpoint(self) -> str:
         base = (self.cfg.get("base_url") or "").strip().rstrip("/")

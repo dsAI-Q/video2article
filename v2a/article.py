@@ -25,7 +25,14 @@ def generate_article(
     style_cfg = load_style(style)
     system_prompt = render_system_prompt(style_cfg)
 
-    user_parts = ["以下为视频字幕稿（含时间戳），请据此写公众号文章：\n", subtitle_text.strip()]
+    user_parts = [
+        "以下为视频字幕稿（含时间戳，ASR 自动转写），请据此写公众号文章：\n",
+        subtitle_text.strip(),
+        "\n\n注意：字幕是语音识别结果，可能有同音错别字。请根据上下文和 AI 领域常识自动纠正明显的识别错误，例如："
+        "k1me/kimi/扣恩 → Qwen；美杰/美姐/美杰点一 → 2.1；"
+        "拼音meji/以美几/一美几 → Qwen；"
+        "其他明显语音识别错误也请自行修正，不要把错别字写进文章。",
+    ]
     if extra_context and extra_context.strip():
         user_parts.append(f"\n\n补充信息（供参考，不要照抄）:\n{extra_context.strip()}")
 

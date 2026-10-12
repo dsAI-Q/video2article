@@ -2,100 +2,176 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>v2a · 视频转公众号文章</title>
+<title>v2a · 视频转公众号文章 · 大圣Ai自习室</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-         background: #f5f6f8; color: #222; padding: 24px; max-width: 900px; margin: 0 auto; }
-  h1 { font-size: 22px; margin-bottom: 4px; }
-  .sub { color: #888; font-size: 13px; margin-bottom: 20px; }
-  .card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px;
-          box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  body {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    color: #222; padding: 20px;
+    background: #f5f6f8;
+    min-height: 100vh;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 200px 1fr 200px;
+    gap: 16px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  .side { display: flex; flex-direction: column; gap: 12px; }
+  .side img { width: 100%; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+  .brand-bar {
+    grid-column: 1 / -1;
+    display: flex; justify-content: space-between; align-items: center;
+    background: linear-gradient(135deg, #6a3093, #a044ff);
+    color: #fff; padding: 14px 20px; border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(106,48,147,.3);
+  }
+  .brand-bar h1 { font-size: 20px; }
+  .brand-bar .badge { font-size: 12px; opacity: .9; }
+  .contact { font-size: 13px; text-align: right; line-height: 1.6; }
+  .contact a { color: #ffe066; text-decoration: none; }
+  h2.title { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #666; font-size: 13px; margin-bottom: 16px; }
+  .card { background: #fff; border-radius: 10px; padding: 18px;
+          margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
   .row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
   input, select { flex: 1; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px;
                   font-size: 14px; outline: none; }
-  input:focus { border-color: #4a90d9; }
-  button { padding: 10px 20px; border: none; border-radius: 6px; background: #4a90d9;
-           color: #fff; font-size: 14px; cursor: pointer; }
-  button:hover { background: #3a7bc8; }
+  input:focus { border-color: #a044ff; }
+  button { padding: 10px 24px; border: none; border-radius: 6px;
+           background: linear-gradient(135deg, #6a3093, #a044ff);
+           color: #fff; font-size: 14px; cursor: pointer; font-weight: 600; }
   button:disabled { background: #aaa; cursor: not-allowed; }
-  .status { display: flex; gap: 16px; font-size: 13px; }
+  .status { display: flex; gap: 16px; font-size: 13px; flex-wrap: wrap; }
   .ok { color: #2a9d4a; } .bad { color: #d94a4a; }
   #log { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px;
-         font-family: Consolas, monospace; font-size: 12px; max-height: 200px; overflow-y: auto;
-         white-space: pre-wrap; display: none; }
+         font-family: Consolas, monospace; font-size: 12px; max-height: 200px;
+         overflow-y: auto; white-space: pre-wrap; margin-top: 8px; }
   #result { display: none; }
-  #article { background: #fff; padding: 20px; border-radius: 6px; line-height: 1.7;
-             font-size: 14px; white-space: pre-wrap; }
+  #article { background: #fff; padding: 18px; border-radius: 6px; line-height: 1.7;
+             font-size: 14px; white-space: pre-wrap; border: 1px solid #eee; }
   #check { margin-top: 10px; padding: 10px; border-radius: 6px; font-size: 13px; }
-  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
-  .tab { padding: 8px 16px; background: #e8e8e8; border-radius: 6px 6px 0 0; cursor: pointer;
-         font-size: 13px; }
-  .tab.active { background: #fff; font-weight: 600; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 14px; }
+  .tab { padding: 8px 16px; background: #e8e8e8; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .tab.active { background: #6a3093; color: #fff; }
   .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+  .footer { grid-column: 1 / -1; text-align: center; font-size: 12px; color: #888; margin-top: 10px; }
+  .footer a { color: #6a3093; }
 </style>
 </head>
 <body>
 
-<h1>v2a · 视频转公众号文章</h1>
-<div class="sub">本地 R2T2 转写免费 · 仅成文一步调 LLM · 端口 8765</div>
+<div class="layout">
 
-<div class="card">
-  <div class="status" id="status-bar">检查环境中...</div>
-</div>
+  <div class="brand-bar">
+    <div>
+      <h1>🐇 大圣Ai自习室</h1>
+      <div class="badge">ComfyUI 工作流学习 · 一对一陪练</div>
+    </div>
+    <div class="contact">
+      加V：<b>qrock168</b>（备注来意）<br>
+      B站：<a href="https://space.bilibili.com/2083795366" target="_blank">space.bilibili.com/2083795366</a>
+    </div>
+  </div>
 
-<div class="tabs">
-  <div class="tab active" data-tab="run">转文章</div>
-  <div class="tab" data-tab="config">LLM 设置</div>
-</div>
+  <!-- 左侧：二维码广告 -->
+  <div class="side">
+    <img src="/assets/ad1.png" title="入团指导">
+    <img src="/assets/ad2.png" title="ComfyUI招生">
+    <img src="/assets/ad3.jpg" title="QQ群 1051067251">
+  </div>
 
-<div class="card" id="tab-run">
-  <div class="row">
-    <input id="url" placeholder="粘贴 B 站 / YouTube 视频链接...">
-  </div>
-  <div class="row">
-    <select id="style">
-      <option value="tutorial">教程干货</option>
-      <option value="insight">观点洞察</option>
-      <option value="story">故事叙事</option>
-    </select>
-    <button id="btn-run" onclick="run()">开始生成</button>
-  </div>
-  <div id="log"></div>
-</div>
+  <!-- 中间：主功能 -->
+  <div>
+    <h2 class="title">v2a · 视频转公众号文章</h2>
+    <div class="sub">本地 R2T2 转写免费 · 仅成文一步调 LLM · 端口 8765</div>
 
-<div class="card" id="tab-config" style="display:none">
-  <div class="config-grid">
-    <div><label>LLM Base URL</label><input id="base_url" placeholder="https://api.deepseek.com/v1"></div>
-    <div><label>模型名</label><input id="model" placeholder="deepseek-chat"></div>
-    <div style="grid-column:1/3"><label>API Key</label><input id="api_key" type="password" placeholder="sk-..."></div>
-  </div>
-  <div class="row" style="margin-top:12px">
-    <button onclick="saveConfig()">保存配置</button>
-  </div>
-  <div style="font-size:12px;color:#888;margin-top:8px">
-    本地模型填 http://localhost:11434/v1，模型名如 qwen2.5:7b；在线填 Deepseek / OpenAI 兼容地址。
-  </div>
-</div>
+    <div class="card">
+      <div class="status" id="status-bar">检查环境中...</div>
+      <div id="gpu-info" style="margin-top:8px;font-size:12px;color:#666"></div>
+    </div>
 
-<div id="result">
-  <div class="card">
-    <h3 style="margin-bottom:10px">生成结果</h3>
-    <div id="check"></div>
-    <div id="article"></div>
+    <div class="tabs">
+      <div class="tab active" data-tab="run">转文章</div>
+      <div class="tab" data-tab="config">LLM 设置</div>
+    </div>
+
+    <div class="card" id="tab-run">
+      <div class="row">
+        <input id="url" placeholder="粘贴 B 站 / YouTube 视频链接...">
+      </div>
+      <div class="row">
+        <select id="style">
+          <option value="tutorial">教程干货</option>
+          <option value="insight">观点洞察</option>
+          <option value="story">故事叙事</option>
+        </select>
+        <button id="btn-run" onclick="run()">开始生成</button>
+        <button id="btn-cancel" onclick="cancelTask()" style="background:#888">取消/重置</button>
+        <button onclick="flushGpu()" style="background:#0984e3">释放显存</button>
+      </div>
+      <div id="log">等待任务...</div>
+    </div>
+
+    <div class="card" id="tab-config" style="display:none">
+      <div class="config-grid">
+        <div><label>LLM Base URL</label><input id="base_url" placeholder="https://api.deepseek.com/v1"></div>
+        <div><label>模型名</label><input id="model" placeholder="deepseek-chat"></div>
+        <div style="grid-column:1/3"><label>API Key</label><input id="api_key" type="password" placeholder="sk-..."></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button onclick="saveConfig()">保存配置</button>
+      </div>
+      <div style="font-size:12px;color:#888;margin-top:8px">
+        本地模型填 http://localhost:11434/v1；在线填 Deepseek / OpenAI 兼容地址。
+      </div>
+    </div>
+
+    <div id="result" style="display:none">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 style="margin:0">生成结果</h3>
+          <div>
+            <span id="word-count" style="font-size:12px;color:#888;margin-right:12px"></span>
+            <button onclick="copyArticle()" style="background:#6c5ce7;color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;margin-right:6px">复制全文</button>
+            <button onclick="exportMd()" style="background:#00b894;color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer">导出 .md</button>
+          </div>
+        </div>
+        <details id="check-box" style="margin-bottom:10px">
+          <summary style="cursor:pointer;color:#666;font-size:13px">自检报告</summary>
+          <div id="check" style="margin-top:8px;font-size:13px"></div>
+        </details>
+        <div id="article" style="white-space:pre-wrap;line-height:1.8;font-size:14px;padding:12px;background:#fafafa;border-radius:6px;max-height:600px;overflow-y:auto"></div>
+      </div>
+    </div>
   </div>
+
+  <!-- 右侧：Qwen 图 -->
+  <div class="side">
+    <img src="/assets/bg.png" title="大圣Ai自习室">
+  </div>
+
+  <div class="footer">
+    © 大圣Ai自习室 · v2a 开源工具 ·
+    <a href="https://space.bilibili.com/2083795366" target="_blank">B站学习基地</a>
+    · 加V qrock168 一对一陪练
+  </div>
+
 </div>
 
 <script>
 async function loadStatus() {
   const r = await fetch('/api/status').then(r=>r.json());
-  const el = document.getElementById('status-bar');
-  el.innerHTML = `
+  document.getElementById('status-bar').innerHTML = `
     <span class="${r.r2t2.ready?'ok':'bad'}">● R2T2 ${r.r2t2.ready?'就绪':'未找到模型'}</span>
     <span class="${r.ffmpeg.ready?'ok':'bad'}">● ffmpeg ${r.ffmpeg.ready?'就绪':'未找到'}</span>
     <span class="${r.llm.configured?'ok':'bad'}">● LLM ${r.llm.configured?'已配置':'未配置'}</span>
   `;
+  const g = r.gpu || {};
+  document.getElementById('gpu-info').innerHTML =
+    `GPU: ${g.available ? `<b>${g.name}</b>（${g.vram_gb}GB）` : '<span class="bad">未检测到 GPU，使用 CPU 模式（建议在线 LLM）</span>'} — ${r.recommendation?.note || ''}`;
 }
 async function loadConfig() {
   const r = await fetch('/api/config').then(r=>r.json());
@@ -105,8 +181,25 @@ async function loadConfig() {
 async function saveConfig() {
   await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({llm:{base_url:base_url.value,model:model.value,api_key:api_key.value}})});
-  alert('已保存');
-  loadStatus();
+  alert('已保存'); loadStatus();
+}
+async function cancelTask() {
+  await fetch('/api/cancel', {method:'POST'});
+  document.getElementById('log').textContent = '已取消，等待新任务...';
+  document.getElementById('result').style.display = 'none';
+  const btn = document.getElementById('btn-run');
+  btn.disabled = false; btn.textContent = '开始生成';
+}
+async function flushGpu() {
+  const r = await fetch('/api/flush_gpu', {method:'POST'}).then(r=>r.json());
+  if(r.error) { alert('释放失败: '+r.error); return; }
+  const freed = r.reserved_before_mb - r.reserved_after_mb;
+  alert(`v2a 进程显存释放完成：\n\n`+
+        `已分配: ${r.alloc_before_mb} MB → ${r.alloc_after_mb} MB\n`+
+        `PyTorch 缓存: ${r.reserved_before_mb} MB → ${r.reserved_after_mb} MB\n`+
+        `本次释放缓存约: ${freed} MB\n\n`+
+        `注意：Strata/ComfyUI 等其他程序占用的显存，\n`+
+        `需要关闭对应程序才能释放。`);
 }
 async function run() {
   const url = document.getElementById('url').value.trim();
@@ -114,31 +207,44 @@ async function run() {
   const btn = document.getElementById('btn-run');
   btn.disabled = true; btn.textContent = '生成中...';
   const log = document.getElementById('log');
-  log.style.display = 'block'; log.textContent = '';
+  log.textContent = '';
   document.getElementById('result').style.display = 'none';
-
   const r = await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({url, style:document.getElementById('style').value})}).then(r=>r.json());
   if(r.error) { alert(r.error); btn.disabled=false; btn.textContent='开始生成'; return; }
-
   const tid = r.task_id;
   const poll = setInterval(async ()=>{
     const t = await fetch('/api/task/'+tid).then(r=>r.json());
-    log.textContent = t.log.join('\n');
-    log.scrollTop = log.scrollHeight;
+    log.textContent = t.log.join('\n'); log.scrollTop = log.scrollHeight;
     if(t.status==='done') {
       clearInterval(poll);
       document.getElementById('result').style.display='block';
       document.getElementById('article').textContent = t.result.article;
       document.getElementById('check').textContent = t.result.check_report;
       document.getElementById('check').style.background = t.result.check_report.includes('OK')?'#e8f5e9':'#fff3e0';
+      const chars = t.result.article.replace(/\s/g,'').length;
+      document.getElementById('word-count').textContent = chars + ' 字';
       btn.disabled=false; btn.textContent='开始生成';
     } else if(t.status==='error') {
-      clearInterval(poll);
-      alert('出错: '+t.error);
+      clearInterval(poll); alert('出错: '+t.error);
       btn.disabled=false; btn.textContent='开始生成';
     }
   }, 1500);
+}
+function copyArticle() {
+  const text = document.getElementById('article').textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    alert('已复制到剪贴板');
+  });
+}
+function exportMd() {
+  const text = document.getElementById('article').textContent;
+  const blob = new Blob([text], {type:'text/markdown;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'v2a_文章_' + new Date().toISOString().slice(0,10) + '.md';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));

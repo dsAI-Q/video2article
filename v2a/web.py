@@ -56,6 +56,7 @@ def fetch_from_url(url: str, out_dir: str, keep_video: bool = False) -> dict:
         "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
         "quiet": True,
         "no_warnings": True,
+        "proxy": "",  # bypass system proxy for domestic Bilibili
     }
     subtitle_path = ""
     title = url
@@ -105,6 +106,7 @@ def fetch_from_url(url: str, out_dir: str, keep_video: bool = False) -> dict:
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
+            "proxy": "",  # Bilibili is a domestic site — bypass any system proxy
         }
     audio_path = ""
     video_path = ""
@@ -247,49 +249,63 @@ def fetch_metadata(url: str, max_comments: int = 50) -> dict:
     Links are extracted from description + the author's own comment only
     (the UP主's resource-aggregating comment is usually the pinned one).
     """
-    try:
-        import yt_dlp  # noqa: PLC0415
-    except ImportError as e:
-        raise RuntimeError("yt-dlp is required for `v2a web`. pip install yt-dlp") from e
+    import re as _re
+    import json as _json
+    import urllib.request as _urq
 
-    opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "getdescription": True,
-        "getcomments": True,
+    m = _re.search(r"(BV[0-9A-Za-z]{10})", url)
+    if not m:
+        return {"title": url, "description": "", "pinned_comment": "", "links": []}
+    bvid = m.group(1)
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://www.bilibili.com/",
     }
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    opener = _urq.build_opener(_urq.ProxyHandler({}))  # bypass system proxy
 
-    title = info.get("title", url) or url
-    description = info.get("description", "") or ""
-    uploader = (info.get("uploader") or info.get("channel") or "").strip()
+    def _get(api_url):
+        req = _urq.Request(api_url, headers=headers)
+        with opener.open(req, timeout=15) as resp:
+            return _json.loads(resp.read().decode("utf-8"))
 
-    # --- Find the author's own comment(s) (usually the pinned resource comment) ---
+    # 1) video info
+    info = _get(f"https://api.bilibili.com/x/web-interface/view?bvid={bvid}")
+    if info.get("code") != 0:
+        LOG.warning("bilibili view api error: %s", info.get("message"))
+        return {"title": url, "description": "", "pinned_comment": "", "links": []}
+    d = info["data"]
+    title = d.get("title", url)
+    description = d.get("desc", "") or ""
+    up_name = (d.get("owner") or {}).get("name", "")
+    aid = d.get("aid", 0)
+
+    # 2) comments (sort=2 => by time, pinned appears first)
     pinned = ""
-    comments = info.get("comments") or []
-    author_comments = []
-    for c in comments[:max_comments]:
-        author = (c.get("author") or "").strip()
-        text = (c.get("text") or "").strip()
-        if not text:
-            continue
-        # Match uploader's own comment (UP主评论 = pinned resource comment)
-        if uploader and author == uploader:
-            author_comments.append(text)
-        # Also catch comments explicitly marked as top/pinned
-        elif c.get("is_top") or c.get("is_up_top") or c.get("top_level"):
-            author_comments.append(text)
+    try:
+        rep = _get(f"https://api.bilibili.com/x/v2/reply?type=1&oid={aid}&sort=2&pn=1&ps=10")
+        rdata = rep.get("data") or {}
+        author_comments = []
+        # pinned comments are in top_replies, separate from replies
+        for c in (rdata.get("top_replies") or []):
+            text = (c.get("content") or {}).get("message", "")
+            if text:
+                author_comments.append(text)
+        for c in (rdata.get("replies") or []):
+            member = c.get("member") or {}
+            author = member.get("uname", "")
+            text = (c.get("content") or {}).get("message", "")
+            if not text:
+                continue
+            if up_name and author == up_name:
+                author_comments.append(text)
+        if author_comments:
+            pinned = max(author_comments, key=lambda t: len(_URL_RE.findall(t)))
+            LOG.info("author/pinned comment found (%.0f chars, %d urls)",
+                     len(pinned), len(_URL_RE.findall(pinned)))
+    except Exception as e:
+        LOG.warning("bilibili reply api failed: %s", e)
 
-    if author_comments:
-        # Pick the author's comment with the most URLs (the resource summary)
-        pinned = max(author_comments, key=lambda t: len(_URL_RE.findall(t)))
-        LOG.info("author/pinned comment found (%.0f chars, %d urls)",
-                  len(pinned), len(_URL_RE.findall(pinned)))
-    else:
-        LOG.info("no author/pinned comment found in first %d comments", min(len(comments), max_comments))
-
-    # --- Extract links from description + author/pinned comment only ---
     blob = "\n".join(p for p in (description, pinned) if p)
     links = extract_links(blob)
     LOG.info("metadata: %d links extracted (from description + pinned comment)", len(links))

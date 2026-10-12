@@ -39,21 +39,39 @@ def create_app(config) -> FastAPI:
     def index():
         return FileResponse(WEB_DIR / "index.html")
 
+    @app.get("/assets/{name}")
+    def asset(name: str):
+        safe = name.replace("..", "").replace("/", "")
+        p = WEB_DIR / "assets" / safe
+        if not p.is_file():
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return FileResponse(p)
+
     @app.get("/api/status")
     def status():
+        from .gpu import detect_gpu, recommend_settings
         cfg = config.raw
+        gpu = detect_gpu()
+        rec = recommend_settings(gpu)
         # check R2T2 model
         r2t2_path = cfg.get("asr", {}).get("model_path", "")
         r2t2_ok = bool(r2t2_path) and os.path.isfile(os.path.join(r2t2_path, "config.json"))
         # ffmpeg
         ff = cfg.get("ffmpeg", "")
         ff_ok = bool(ff) and os.path.isfile(ff)
-        # LLM configured?
-        llm_ok = bool(cfg.get("llm", {}).get("api_key"))
+        # LLM configured? local models (localhost) don't need api_key
+        llm = cfg.get("llm", {})
+        has_key = bool(llm.get("api_key"))
+        has_url = bool(llm.get("base_url"))
+        has_model = bool(llm.get("model"))
+        is_local = "localhost" in llm.get("base_url", "") or "127.0.0.1" in llm.get("base_url", "")
+        llm_ok = bool(has_url and has_model and (has_key or is_local))
         return {
             "r2t2": {"ready": r2t2_ok, "path": r2t2_path},
             "ffmpeg": {"ready": ff_ok, "path": ff},
-            "llm": {"configured": llm_ok, "model": cfg.get("llm", {}).get("model", "")},
+            "llm": {"configured": llm_ok, "model": llm.get("model", ""), "local": is_local},
+            "gpu": gpu,
+            "recommendation": rec,
             "output_dir": cfg.get("output_dir", "output"),
         }
 
@@ -105,11 +123,56 @@ def create_app(config) -> FastAPI:
             return JSONResponse({"error": "not found"}, status_code=404)
         return t
 
+    @app.post("/api/cancel")
+    def cancel():
+        TASKS.clear()
+        return {"ok": True}
+
+    @app.post("/api/flush_gpu")
+    def flush_gpu():
+        """Release CUDA VRAM cache and run gc."""
+        import gc
+        result = {"alloc_before_mb": 0, "alloc_after_mb": 0, "reserved_before_mb": 0, "reserved_after_mb": 0}
+        try:
+            import torch
+            if torch.cuda.is_available():
+                result["alloc_before_mb"] = round(torch.cuda.memory_allocated() / 1024 / 1024)
+                result["reserved_before_mb"] = round(torch.cuda.memory_reserved() / 1024 / 1024)
+                # unload any cached R2T2 model first
+                try:
+                    from .asr import unload_r2t2
+                    unload_r2t2()
+                except Exception:
+                    pass
+                gc.collect()
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                result["alloc_after_mb"] = round(torch.cuda.memory_allocated() / 1024 / 1024)
+                result["reserved_after_mb"] = round(torch.cuda.memory_reserved() / 1024 / 1024)
+        except Exception as e:
+            result["error"] = str(e)
+        return result
+
     return app
 
 
 def _run_task(task_id: str, url: str, local_file: str, style: str, config):
     t = TASKS[task_id]
+    import logging
+
+    class _TaskLogHandler(logging.Handler):
+        def emit(self, record):
+            try:
+                t["log"].append(self.format(record))
+            except Exception:
+                pass
+
+    handler = _TaskLogHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    v2a_logger = logging.getLogger("v2a")
+    v2a_logger.addHandler(handler)
+    v2a_logger.setLevel(logging.INFO)
+
     try:
         t["log"].append("启动 v2a 任务...")
         out_dir = os.path.abspath(config.raw.get("output_dir", "output"))
@@ -147,10 +210,13 @@ def _run_task(task_id: str, url: str, local_file: str, style: str, config):
         with open(md_path, encoding="utf-8") as f:
             subtitle_text = f.read()
         from .article import generate_article
+        # pass the real video title so LLM can correct ASR errors (e.g. Qwen vs k1me)
+        video_title = info.get("title", "") if url else ""
         article = generate_article(
             subtitle_text,
             style=style,
             cfg_llm=config.raw.get("llm", {}),
+            extra_context=f"视频真实标题：{video_title}" if video_title else "",
         )
         if resources:
             article = article.rstrip() + "\n" + resources
@@ -161,7 +227,7 @@ def _run_task(task_id: str, url: str, local_file: str, style: str, config):
 
         # self-check
         from .check import check_article, format_report
-        issues = check_article(article, web_mode=bool(url))
+        issues = check_article(article, web_mode=bool(url), video_title=info.get("title", "") if url else "")
         report = format_report(issues)
 
         t["result"] = {
@@ -176,6 +242,14 @@ def _run_task(task_id: str, url: str, local_file: str, style: str, config):
         t["status"] = "error"
         t["error"] = str(e)
         t["log"].append(f"错误: {e}")
+    finally:
+        # always free R2T2 VRAM after the task
+        try:
+            from .asr import unload_r2t2
+            unload_r2t2()
+            t["log"].append("已释放 R2T2 显存缓存。")
+        except Exception:
+            pass
 
 
 def main(config):
@@ -183,6 +257,9 @@ def main(config):
     host = config.raw.get("webui", {}).get("host", "127.0.0.1")
     app = create_app(config)
     LOG.info("v2a webui at http://%s:%d", host, port)
-    # auto-open browser
-    threading.Timer(1.0, lambda: os.system(f"start http://{host}:{port}")).start()
+    # auto-open browser (cross-platform)
+    def _open():
+        import webbrowser
+        webbrowser.open(f"http://{host}:{port}")
+    threading.Timer(1.0, _open).start()
     uvicorn.run(app, host=host, port=port, log_level="warning")

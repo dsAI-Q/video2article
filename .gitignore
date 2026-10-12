@@ -2,3 +2,7 @@ output/
 config.yaml
 __pycache__/
 *.pyc
+.bin/
+.venv/
+models/r2t2/
+.DS_Store

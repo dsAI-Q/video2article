@@ -27,7 +27,7 @@ def _count_chinese(text: str) -> int:
     return len(re.findall(r"[一-鿿]", text))
 
 
-def check_article(text: str, web_mode: bool = False) -> list:
+def check_article(text: str, web_mode: bool = False, video_title: str = "") -> list:
     """Return list of (severity, message) issues found in the article markdown."""
     issues: list = []
     if not text or not text.strip():
@@ -86,6 +86,32 @@ def check_article(text: str, web_mode: bool = False) -> list:
     # --- empty trailing / suspicious tail ---
     if text.rstrip().endswith("```") and text.count("```") % 2 != 0:
         issues.append(("warning", "unclosed code fence in article"))
+
+    # --- video title consistency ---
+    if video_title:
+        # Extract key entities from video title: uppercase words, model names, numbers
+        title_entities = set(re.findall(r"[A-Z][a-zA-Z0-9]+(?:[.\-][0-9]+)?", video_title))
+        # known ASR-confusion pairs: if title says X but article still has Y (the ASR error), flag it
+        asr_mistakes = {
+            "Qwen": ["k1me", "kimi", "扣恩", "拼音meji", "以美几", "一美几", "美杰"],
+            "Kimi": ["k1me", "qwen"],
+            "Hunyuan": ["混元"],
+        }
+        for correct, wrong_list in asr_mistakes.items():
+            # if title mentions the correct model name
+            if correct.lower() in video_title.lower() or correct in title_entities:
+                for w in wrong_list:
+                    if w.lower() in text.lower():
+                        issues.append(("error",
+                            f"文章与视频标题不一致：标题提到「{correct}」，但正文仍有 ASR 识别错误「{w}」，请修正"))
+        # also: entities in title should appear somewhere in article
+        missing = []
+        for ent in title_entities:
+            if len(ent) >= 3 and ent.lower() not in text.lower():
+                missing.append(ent)
+        if len(missing) >= 2:
+            issues.append(("warning",
+                f"视频标题中的关键信息 {missing[:5]} 在文章中未出现，可能内容偏离主题"))
 
     return issues
 
