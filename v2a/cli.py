@@ -131,6 +131,8 @@ def main(argv=None) -> int:
     sp.add_argument("input", help="article markdown file to review")
     sp.add_argument("--web-mode", action="store_true", help="also check for resource-links section")
 
+    sub.add_parser("webui", help="launch local web UI (http://127.0.0.1:8765)")
+
     args = p.parse_args(argv)
     setup_logging(args.verbose)
 
@@ -161,6 +163,11 @@ def main(argv=None) -> int:
         print(format_report(issues))
         # non-zero exit if any error-level issue
         return 1 if any(sev == "error" for sev, _ in issues) else 0
+
+    if args.cmd == "webui":
+        from v2a.webui import main as webui_main
+        webui_main(cfg)
+        return 0
 
     try:
         if args.cmd == "transcribe":

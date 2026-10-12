@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>v2a · 视频转公众号文章</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+         background: #f5f6f8; color: #222; padding: 24px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #888; font-size: 13px; margin-bottom: 20px; }
+  .card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px;
+          box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+  input, select { flex: 1; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px;
+                  font-size: 14px; outline: none; }
+  input:focus { border-color: #4a90d9; }
+  button { padding: 10px 20px; border: none; border-radius: 6px; background: #4a90d9;
+           color: #fff; font-size: 14px; cursor: pointer; }
+  button:hover { background: #3a7bc8; }
+  button:disabled { background: #aaa; cursor: not-allowed; }
+  .status { display: flex; gap: 16px; font-size: 13px; }
+  .ok { color: #2a9d4a; } .bad { color: #d94a4a; }
+  #log { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px;
+         font-family: Consolas, monospace; font-size: 12px; max-height: 200px; overflow-y: auto;
+         white-space: pre-wrap; display: none; }
+  #result { display: none; }
+  #article { background: #fff; padding: 20px; border-radius: 6px; line-height: 1.7;
+             font-size: 14px; white-space: pre-wrap; }
+  #check { margin-top: 10px; padding: 10px; border-radius: 6px; font-size: 13px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab { padding: 8px 16px; background: #e8e8e8; border-radius: 6px 6px 0 0; cursor: pointer;
+         font-size: 13px; }
+  .tab.active { background: #fff; font-weight: 600; }
+  .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<h1>v2a · 视频转公众号文章</h1>
+<div class="sub">本地 R2T2 转写免费 · 仅成文一步调 LLM · 端口 8765</div>
+
+<div class="card">
+  <div class="status" id="status-bar">检查环境中...</div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="run">转文章</div>
+  <div class="tab" data-tab="config">LLM 设置</div>
+</div>
+
+<div class="card" id="tab-run">
+  <div class="row">
+    <input id="url" placeholder="粘贴 B 站 / YouTube 视频链接...">
+  </div>
+  <div class="row">
+    <select id="style">
+      <option value="tutorial">教程干货</option>
+      <option value="insight">观点洞察</option>
+      <option value="story">故事叙事</option>
+    </select>
+    <button id="btn-run" onclick="run()">开始生成</button>
+  </div>
+  <div id="log"></div>
+</div>
+
+<div class="card" id="tab-config" style="display:none">
+  <div class="config-grid">
+    <div><label>LLM Base URL</label><input id="base_url" placeholder="https://api.deepseek.com/v1"></div>
+    <div><label>模型名</label><input id="model" placeholder="deepseek-chat"></div>
+    <div style="grid-column:1/3"><label>API Key</label><input id="api_key" type="password" placeholder="sk-..."></div>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button onclick="saveConfig()">保存配置</button>
+  </div>
+  <div style="font-size:12px;color:#888;margin-top:8px">
+    本地模型填 http://localhost:11434/v1，模型名如 qwen2.5:7b；在线填 Deepseek / OpenAI 兼容地址。
+  </div>
+</div>
+
+<div id="result">
+  <div class="card">
+    <h3 style="margin-bottom:10px">生成结果</h3>
+    <div id="check"></div>
+    <div id="article"></div>
+  </div>
+</div>
+
+<script>
+async function loadStatus() {
+  const r = await fetch('/api/status').then(r=>r.json());
+  const el = document.getElementById('status-bar');
+  el.innerHTML = `
+    <span class="${r.r2t2.ready?'ok':'bad'}">● R2T2 ${r.r2t2.ready?'就绪':'未找到模型'}</span>
+    <span class="${r.ffmpeg.ready?'ok':'bad'}">● ffmpeg ${r.ffmpeg.ready?'就绪':'未找到'}</span>
+    <span class="${r.llm.configured?'ok':'bad'}">● LLM ${r.llm.configured?'已配置':'未配置'}</span>
+  `;
+}
+async function loadConfig() {
+  const r = await fetch('/api/config').then(r=>r.json());
+  document.getElementById('base_url').value = r.llm.base_url||'';
+  document.getElementById('model').value = r.llm.model||'';
+}
+async function saveConfig() {
+  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({llm:{base_url:base_url.value,model:model.value,api_key:api_key.value}})});
+  alert('已保存');
+  loadStatus();
+}
+async function run() {
+  const url = document.getElementById('url').value.trim();
+  if(!url) { alert('请输入视频链接'); return; }
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true; btn.textContent = '生成中...';
+  const log = document.getElementById('log');
+  log.style.display = 'block'; log.textContent = '';
+  document.getElementById('result').style.display = 'none';
+
+  const r = await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({url, style:document.getElementById('style').value})}).then(r=>r.json());
+  if(r.error) { alert(r.error); btn.disabled=false; btn.textContent='开始生成'; return; }
+
+  const tid = r.task_id;
+  const poll = setInterval(async ()=>{
+    const t = await fetch('/api/task/'+tid).then(r=>r.json());
+    log.textContent = t.log.join('\n');
+    log.scrollTop = log.scrollHeight;
+    if(t.status==='done') {
+      clearInterval(poll);
+      document.getElementById('result').style.display='block';
+      document.getElementById('article').textContent = t.result.article;
+      document.getElementById('check').textContent = t.result.check_report;
+      document.getElementById('check').style.background = t.result.check_report.includes('OK')?'#e8f5e9':'#fff3e0';
+      btn.disabled=false; btn.textContent='开始生成';
+    } else if(t.status==='error') {
+      clearInterval(poll);
+      alert('出错: '+t.error);
+      btn.disabled=false; btn.textContent='开始生成';
+    }
+  }, 1500);
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('tab-run').style.display = t.dataset.tab==='run'?'block':'none';
+  document.getElementById('tab-config').style.display = t.dataset.tab==='config'?'block':'none';
+});
+loadStatus(); loadConfig();
+</script>
+</body>
+</html>
